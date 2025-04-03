@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Recipe Calculator</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body {
+            background-color: #2D1B1E;  /* Dark brown */
+            color: #E8D5B5;  /* Light beige */
+            font-family: Arial, sans-serif;
+        }
+        .table {
+            background-color: #3D2B2E;  /* Slightly lighter dark brown */
+            color: #E8D5B5;
+        }
+        .table th {
+            background-color: #A67C00;  /* Vibrant gold */
+            color: #E8D5B5;
+        }
+        .btn-custom {
+            background-color: #A67C00;
+            color: #E8D5B5;
+            border: none;
+        }
+        .btn-custom:hover {
+            background-color: #8C6700;
+            color: #E8D5B5;
+        }
+        .total {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: #E8D5B5;
+        }
+        .form-control {
+            background-color: #3D2B2E;
+            color: #E8D5B5;
+            border: 1px solid #A67C00;
+        }
+    </style>
+</head>
+<body>
+    <div class="container mt-4">
+        <h1 class="text-center mb-4">Calculadora de Recetas</h1>
+        
+        <!-- Table -->
+        <table class="table table-striped">
+            <thead>
+                <tr>
+                    <th>INGREDIENTES</th>
+                    <th>FÓRMULA</th>
+                    <th>VALOR FÓRMULA</th>
+                    <th>PRECIO INGREDIENTE</th>
+                    <th>ACCIONES</th>
+                </tr>
+            </thead>
+            <tbody id="ingredientTable"></tbody>
+        </table>
+        
+        <!-- Total -->
+        <div class="text-center total" id="totalCost">Total: $0</div>
+        
+        <!-- Buttons -->
+        <div class="text-center mt-3">
+            <button class="btn btn-custom" onclick="showForm('add')">Agregar Ingrediente</button>
+        </div>
+        
+        <!-- Form Modal (Hidden by Default) -->
+        <div id="ingredientModal" class="modal fade" tabindex="-1">
+            <div class="modal-dialog">
+                <div class="modal-content" style="background-color: #3D2B2E; color: #E8D5B5;">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="modalTitle"></h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" style="filter: invert(1);"></button>
+                    </div>
+                    <div class="modal-body">
+                        <form id="ingredientForm">
+                            <div class="mb-3">
+                                <label>Nombre</label>
+                                <input type="text" class="form-control" id="name" required>
+                            </div>
+                            <div class="mb-3">
+                                <label>Cantidad Fórmula</label>
+                                <input type="number" step="any" class="form-control" id="formula" required>
+                            </div>
+                            <div class="mb-3">
+                                <label>Unidad Fórmula (g/unit)</label>
+                                <input type="text" class="form-control" id="unit" required>
+                            </div>
+                            <div class="mb-3">
+                                <label>Precio ($)</label>
+                                <input type="number" step="any" class="form-control" id="price" required>
+                            </div>
+                            <div class="mb-3">
+                                <label>Cantidad Precio</label>
+                                <input type="number" step="any" class="form-control" id="price_qty" required>
+                            </div>
+                            <div class="mb-3">
+                                <label>Unidad Precio (g/unit)</label>
+                                <input type="text" class="form-control" id="price_unit" required>
+                            </div>
+                            <input type="hidden" id="index">
+                        </form>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-custom" onclick="saveIngredient()">Guardar</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Initial data - stored in localStorage
+        const initialIngredients = [
+            {"name": "avena", "formula": 60, "unit": "g", "price": 8200, "price_qty": 500, "price_unit": "g"},
+            {"name": "cocoa", "formula": 30, "unit": "g", "price": 9000, "price_qty": 100, "price_unit": "g"},
+            {"name": "Aceite coco", "formula": 15, "unit": "g", "price": 58200, "price_qty": 500, "price_unit": "g"},
+            {"name": "Miel", "formula": 20, "unit": "g", "price": 25000, "price_qty": 700, "price_unit": "g"},
+            {"name": "Agua", "formula": 30, "unit": "g", "price": 0, "price_qty": 1, "price_unit": "g"},
+            {"name": "Arándanos", "formula": 60, "unit": "g", "price": 23000, "price_qty": 250, "price_unit": "g"},
+            {"name": "Chía", "formula": 10, "unit": "g", "price": 22000, "price_qty": 250, "price_unit": "g"},
+            {"name": "Huevos", "formula": 1, "unit": "unit", "price": 22000, "price_qty": 30, "price_unit": "unit"},
+            {"name": "Bicarbonato", "formula": 1, "unit": "g", "price": 1000, "price_qty": 20, "price_unit": "g"}
+        ];
+
+        // Initialize ingredients from localStorage if available, otherwise use initial data
+        let ingredients = JSON.parse(localStorage.getItem('recipeIngredients')) || initialIngredients;
+        
+        // Initialize the modal
+        const modal = new bootstrap.Modal(document.getElementById('ingredientModal'));
+        
+        // Calculate formula value
+        function calculateValorFormula(formula, price, price_qty) {
+            if (price == 0) {
+                return 0;
+            }
+            return ((price / price_qty) * formula).toFixed(2);
+        }
+        
+        // Update the ingredients table
+        function updateTable() {
+            const tbody = document.getElementById('ingredientTable');
+            tbody.innerHTML = '';
+            
+            let total = 0;
+            ingredients.forEach((ing, index) => {
+                const valorFormula = calculateValorFormula(ing.formula, ing.price, ing.price_qty);
+                total += parseFloat(valorFormula);
+                
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>${ing.name}</td>
+                    <td>${ing.formula} ${ing.unit}</td>
+                    <td>$${parseFloat(valorFormula).toLocaleString('es-CO', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                    <td>$${ing.price.toLocaleString('es-CO')}=${ing.price_qty} ${ing.price_unit}</td>
+                    <td>
+                        <button class="btn btn-custom btn-sm" onclick="showForm('edit', ${index})">Editar</button>
+                        <button class="btn btn-danger btn-sm" onclick="deleteIngredient(${index})">Eliminar</button>
+                    </td>
+                `;
+                tbody.appendChild(row);
+            });
+            
+            document.getElementById('totalCost').textContent = `Total: $${total.toLocaleString('es-CO', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+            
+            // Save to localStorage
+            localStorage.setItem('recipeIngredients', JSON.stringify(ingredients));
+        }
+
+        function showForm(mode, index = null) {
+            const form = document.getElementById('ingredientForm');
+            document.getElementById('modalTitle').textContent = mode === 'add' ? 'Agregar Ingrediente' : 'Editar Ingrediente';
+            document.getElementById('index').value = index !== null ? index : '';
+
+            if (mode === 'edit' && index !== null) {
+                const ing = ingredients[index];
+                document.getElementById('name').value = ing.name;
+                document.getElementById('formula').value = ing.formula;
+                document.getElementById('unit').value = ing.unit;
+                document.getElementById('price').value = ing.price;
+                document.getElementById('price_qty').value = ing.price_qty;
+                document.getElementById('price_unit').value = ing.price_unit;
+            } else {
+                form.reset();
+            }
+            modal.show();
+        }
+
+        function saveIngredient() {
+            const data = {
+                name: document.getElementById('name').value,
+                formula: parseFloat(document.getElementById('formula').value),
+                unit: document.getElementById('unit').value,
+                price: parseFloat(document.getElementById('price').value),
+                price_qty: parseFloat(document.getElementById('price_qty').value),
+                price_unit: document.getElementById('price_unit').value
+            };
+            
+            const index = document.getElementById('index').value;
+            
+            if (index === '') {
+                // Add new ingredient
+                ingredients.push(data);
+            } else {
+                // Update existing ingredient
+                ingredients[index] = data;
+            }
+            
+            modal.hide();
+            updateTable();
+        }
+
+        function deleteIngredient(index) {
+            if (confirm('¿Seguro que desea eliminar este ingrediente?')) {
+                ingredients.splice(index, 1);
+                updateTable();
+            }
+        }
+
+        // Add export/import functionality
+        function exportData() {
+            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(ingredients));
+            const downloadAnchorNode = document.createElement('a');
+            downloadAnchorNode.setAttribute("href", dataStr);
+            downloadAnchorNode.setAttribute("download", "recipe_ingredients.json");
+            document.body.appendChild(downloadAnchorNode);
+            downloadAnchorNode.click();
+            downloadAnchorNode.remove();
+        }
+
+        function resetToDefault() {
+            if (confirm('¿Seguro que desea restablecer a los ingredientes predeterminados? Se perderán todas las modificaciones.')) {
+                ingredients = [...initialIngredients];
+                updateTable();
+            }
+        }
+
+        // Initial table load
+        updateTable();
+        
+        // Add export/reset buttons after load
+        const buttonContainer = document.querySelector('.text-center.mt-3');
+        buttonContainer.innerHTML += `
+            <button class="btn btn-secondary ms-2" onclick="exportData()">Exportar Datos</button>
+            <button class="btn btn-warning ms-2" onclick="resetToDefault()">Restablecer Predeterminados</button>
+        `;
+    </script>
+</body>
+</html>
